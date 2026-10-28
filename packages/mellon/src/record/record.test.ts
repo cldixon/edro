@@ -14,7 +14,9 @@ const SOURCE_HOST = "my-dev-tier.invalid";
 const TOKEN = "dev-tier-token-1234567890";
 // Built at runtime from obviously fake parts, so no token-shaped literal lives in the repo.
 const b64 = (s: string) => Buffer.from(s).toString("base64url");
-const JWT_LIKE = [b64('{"alg":"HS256"}'), b64('{"sub":"fake-user"}'), b64("fake-signature")].join(".");
+const JWT_LIKE = [b64('{"alg":"HS256"}'), b64('{"sub":"fake-user"}'), b64("fake-signature")].join(
+  ".",
+);
 
 function realisticState(): { state: FakeFoundryState; originals: string[] } {
   let json = JSON.stringify(sampleState(Date.parse("2026-10-27T12:00:00Z")));
