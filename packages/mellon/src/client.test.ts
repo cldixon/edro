@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import {
+  addBuild,
   createFakeFetch,
   FAKE_HOSTNAME,
   FAKE_TOKEN,
   NIGHTLY_SCHEDULE,
+  OTHER_USER_ID,
   sampleState,
 } from "./fake/index.ts";
 import { buildSearchFilter, collectPages, createClient, EdroError, webUrl } from "./index.ts";
@@ -46,6 +48,17 @@ describe("createClient against the fake API", () => {
       `https://${FAKE_HOSTNAME}/api/v2/orchestration/builds/search?preview=true`,
     );
     expect(req?.headers.get("Authorization")).toBe(`Bearer ${FAKE_TOKEN}`);
+  });
+
+  test("builds.search with mine filters to the current user, looking them up once", async () => {
+    const { client, state, log } = setup();
+    addBuild(state, { createdAt: NOW - 60_000, status: "RUNNING", createdBy: OTHER_USER_ID });
+    const since = new Date(NOW - 7 * 86_400_000);
+    expect((await client.builds.search({ since })).items).toHaveLength(5);
+    const mine = await client.builds.search({ since, mine: true });
+    expect(mine.items).toHaveLength(4);
+    await client.builds.search({ since, mine: true });
+    expect(log.filter((r) => r.url.endsWith("/users/getCurrent"))).toHaveLength(1);
   });
 
   test("builds.search filters by status and branch", async () => {
@@ -104,11 +117,18 @@ describe("createClient against the fake API", () => {
 });
 
 describe("buildSearchFilter", () => {
-  test("defaults to the last 7 days", () => {
+  test("defaults to the last 24 hours", () => {
     expect(buildSearchFilter({}, NOW)).toEqual({
       type: "gte",
       field: "STARTED_TIME",
-      value: new Date(NOW - 7 * 86_400_000).toISOString(),
+      value: new Date(NOW - 86_400_000).toISOString(),
+    });
+  });
+
+  test("filters by creator", () => {
+    expect(buildSearchFilter({ createdBy: "u1" }, NOW)).toMatchObject({
+      type: "and",
+      items: [{ type: "gte" }, { type: "eq", field: "CREATED_BY", value: "u1" }],
     });
   });
 

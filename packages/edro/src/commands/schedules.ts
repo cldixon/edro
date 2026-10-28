@@ -2,24 +2,26 @@ import { collectPages, type Schedule } from "@edro/mellon";
 import { EXIT, UsageError } from "../exit.ts";
 import { formatAgo, parseSince, table } from "../format.ts";
 import { parseLimit } from "./builds.ts";
-import { type CommandDef, connectionFlags, jsonFlag } from "./types.ts";
+import { allUsersFlag, type CommandDef, connectionFlags, jsonFlag } from "./types.ts";
 
 export const scheduleCommands: CommandDef[] = [
   {
     path: ["schedules", "ls"],
     // The public API can't list schedules, so this finds them through builds.
-    description: "List schedules that started builds recently",
+    description: "List schedules that started your builds recently",
     flags: [
       { name: "since", description: "Look at builds since, e.g. 2d (default 7d)" },
+      allUsersFlag,
       jsonFlag,
       ...connectionFlags,
     ],
     async run(ctx) {
       const { args, deps } = ctx;
       const client = await ctx.client();
-      const since = typeof args.since === "string" ? parseSince(args.since, deps.now()) : undefined;
+      const since = parseSince(typeof args.since === "string" ? args.since : "7d", deps.now());
+      const mine = !args["all-users"];
       const builds = await collectPages(
-        (pageToken) => client.builds.search({ since, pageSize: 100, pageToken }),
+        (pageToken) => client.builds.search({ since, mine, pageSize: 100, pageToken }),
         1000,
       );
       const lastBuild = new Map<string, (typeof builds)[number]>();

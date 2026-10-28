@@ -1,6 +1,6 @@
 import { webUrl } from "@edro/mellon";
 import { EXIT, UsageError } from "../exit.ts";
-import { type CommandDef, connectionFlags } from "./types.ts";
+import { allUsersFlag, type CommandDef, connectionFlags } from "./types.ts";
 
 export const miscCommands: CommandDef[] = [
   {
@@ -28,6 +28,7 @@ export const miscCommands: CommandDef[] = [
     description: "Open the terminal UI with a live build list",
     flags: [
       { name: "interval", description: "Seconds between refreshes (default 10)" },
+      allUsersFlag,
       ...connectionFlags,
     ],
     async run(ctx) {
@@ -39,6 +40,7 @@ export const miscCommands: CommandDef[] = [
         client,
         openUrl: ctx.deps.openUrl,
         intervalMs: Number.isFinite(interval) && interval > 0 ? interval * 1000 : 10_000,
+        allUsers: !!ctx.args["all-users"],
       });
       return EXIT.ok;
     },

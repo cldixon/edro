@@ -67,3 +67,27 @@ test("backs off after errors and shows them", async () => {
   await setup.renderOnce();
   expect(setup.captureCharFrame()).toContain("Rate limited by Foundry.");
 });
+
+test("polls less often when Foundry responds slowly", async () => {
+  let now = Date.parse("2026-10-27T12:00:00Z");
+  const slow = createDemoClient(() => now);
+  const search = slow.builds.search;
+  slow.builds.search = async (q) => {
+    now += 8_000; // an 8-second response
+    return search(q);
+  };
+  setup = await createTestRenderer({ width: 140, height: 20 });
+  board = new BuildBoard(setup.renderer, {
+    client: slow,
+    openUrl: async () => {},
+    intervalMs: 10_000,
+    now: () => now,
+  });
+  await board.refresh();
+  board.stop();
+  expect(board.lastDurationMs).toBe(8_000);
+  expect(board.nextDelay()).toBe(24_000);
+  await setup.renderOnce();
+  expect(setup.captureCharFrame()).toContain("(took 8s)");
+  expect(setup.captureCharFrame()).toContain("My builds");
+});

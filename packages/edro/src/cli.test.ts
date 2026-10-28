@@ -1,16 +1,18 @@
 import { describe, expect, test } from "bun:test";
 import type { Build } from "@edro/mellon";
 import {
+  addBuild,
   FAKE_HOSTNAME,
   FAKE_REDIRECT_PORT,
   FAKE_TOKEN,
   fakeAuthorize,
   NIGHTLY_SCHEDULE,
+  OTHER_USER_ID,
 } from "@edro/mellon/fake";
 import pkg from "../package.json" with { type: "json" };
 import { findCommand, main } from "./cli.ts";
 import { EXIT } from "./exit.ts";
-import { testDeps } from "./testing.ts";
+import { NOW, testDeps } from "./testing.ts";
 
 const env = { FOUNDRY_HOSTNAME: FAKE_HOSTNAME, FOUNDRY_TOKEN: FAKE_TOKEN };
 const json = (lines: string[]) => JSON.parse(lines.join("\n"));
@@ -63,7 +65,8 @@ describe("builds", () => {
     const deps = testDeps({ env });
     expect(await main(["builds", "ls", "--json"], deps)).toBe(EXIT.ok);
     const builds = json(deps.stdout) as Build[];
-    expect(builds.map((b) => b.status)).toEqual(["running", "succeeded", "failed", "succeeded"]);
+    // The default window is 24 hours, so the day-old build is left out.
+    expect(builds.map((b) => b.status)).toEqual(["running", "succeeded", "failed"]);
     expect(Object.keys(builds[0] as Build).sort()).toEqual(
       [
         "branch",
@@ -83,6 +86,22 @@ describe("builds", () => {
     const deps = testDeps({ env });
     await main(["builds", "ls", "--status", "failed,running", "--limit", "1", "--json"], deps);
     expect(json(deps.stdout).map((b: Build) => b.status)).toEqual(["running"]);
+  });
+
+  test("ls --since widens or narrows the window", async () => {
+    const deps = testDeps({ env });
+    await main(["builds", "ls", "--since", "2d", "--json"], deps);
+    expect(json(deps.stdout)).toHaveLength(4);
+  });
+
+  test("ls shows only your builds unless --all-users", async () => {
+    const deps = testDeps({ env });
+    addBuild(deps.state, { createdAt: NOW - 60_000, status: "RUNNING", createdBy: OTHER_USER_ID });
+    await main(["builds", "ls", "--json"], deps);
+    expect(json(deps.stdout).map((b: Build) => b.createdBy)).not.toContain(OTHER_USER_ID);
+    deps.stdout.length = 0;
+    await main(["builds", "ls", "--all-users", "--json"], deps);
+    expect(json(deps.stdout)[0].createdBy).toBe(OTHER_USER_ID);
   });
 
   test("ls --since excludes older builds", async () => {

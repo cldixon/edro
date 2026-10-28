@@ -19,13 +19,19 @@ export interface ClientOptions {
   tokenProvider: () => Promise<string>;
   /** Swapped out by tests and demo mode to serve fake responses. */
   fetch?: typeof globalThis.fetch;
+  /** The clock for default time windows; tests and demo mode pass their own. */
+  now?: () => number;
 }
 
 export interface BuildQuery {
   status?: BuildStatus[];
   branch?: string;
-  /** Only builds started at or after this time. Defaults to 7 days ago. */
+  /** Only builds started at or after this time. Defaults to 24 hours ago. */
   since?: Date;
+  /** Only builds started by this user ID. */
+  createdBy?: string;
+  /** Only the current user's builds. Much cheaper on busy instances. */
+  mine?: boolean;
   pageSize?: number;
   pageToken?: string;
 }
@@ -56,7 +62,9 @@ export interface MellonClient {
   webUrl(rid: string): string;
 }
 
-const DEFAULT_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
+// Build search gets slow on busy instances as the window grows, so keep the
+// default short; --since widens it.
+export const DEFAULT_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 
 export function buildSearchFilter(query: BuildQuery, now = Date.now()): SearchBuildsFilter {
   const since = query.since ?? new Date(now - DEFAULT_LOOKBACK_MS);
@@ -64,6 +72,7 @@ export function buildSearchFilter(query: BuildQuery, now = Date.now()): SearchBu
     { type: "gte", field: "STARTED_TIME", value: since.toISOString() },
   ];
   if (query.branch) items.push({ type: "eq", field: "BRANCH_NAME", value: query.branch });
+  if (query.createdBy) items.push({ type: "eq", field: "CREATED_BY", value: query.createdBy });
   if (query.status?.length) {
     const byStatus: SearchBuildsFilter[] = query.status.map((s) => ({
       type: "eq",
@@ -94,19 +103,30 @@ export function createClient(options: ClientOptions): MellonClient {
     options.fetch,
   );
 
+  // The current user, fetched once per client (`mine` searches need its ID).
+  let currentUser: Promise<CurrentUser> | undefined;
+  const whoami = () => {
+    currentUser ??= call(async () => toCurrentUser(await Users.getCurrent(platform)));
+    currentUser.catch(() => {
+      currentUser = undefined;
+    });
+    return currentUser;
+  };
+
   return {
     hostname: options.hostname,
 
-    whoami: () => call(async () => toCurrentUser(await Users.getCurrent(platform))),
+    whoami,
 
     builds: {
       search: (query = {}) =>
         call(async () => {
+          const createdBy = query.mine ? (await whoami()).id : query.createdBy;
           // Build search is still a preview endpoint.
           const res = await Builds.search(
             platform,
             {
-              where: buildSearchFilter(query),
+              where: buildSearchFilter({ ...query, createdBy }, (options.now ?? Date.now)()),
               orderBy: { fields: [{ field: "STARTED_TIME", direction: "DESC" }] },
               pageSize: query.pageSize,
               pageToken: query.pageToken,

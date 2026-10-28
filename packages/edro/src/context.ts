@@ -96,6 +96,7 @@ export function createContext(args: Args, rest: string[], deps: Deps): CommandCo
               hostname: c.hostname,
               tokenProvider: c.tokenProvider,
               fetch: deps.fetch,
+              now: deps.now,
             }),
           );
       return client;

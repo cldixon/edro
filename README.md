@@ -48,19 +48,22 @@ Which credentials win: an explicit `--profile`, then `--hostname` and the `FOUND
 
 ## Commands
 
-| Command                     | What it does                                                                  |
-| --------------------------- | ----------------------------------------------------------------------------- |
-| `edro builds ls`            | Recent builds. Filters: `--status`, `--since`, `--branch`, `--limit`, `--all` |
-| `edro builds get <rid>`     | One build                                                                     |
-| `edro builds jobs <rid>`    | A build's jobs and their output datasets                                      |
-| `edro builds watch <rid>`   | Wait for a build to finish; exits 5 if it doesn't succeed                     |
-| `edro schedules ls`         | Schedules that started builds recently                                        |
-| `edro schedules runs <rid>` | A schedule's recent runs                                                      |
-| `edro open <rid>`           | Open a resource in the Foundry web UI (`--print` for the URL)                 |
-| `edro ui`                   | Live build list in the terminal                                               |
-| `edro login` / `logout`     | Manage credentials                                                            |
-| `edro profiles ls\|use\|rm` | Manage profiles                                                               |
-| `edro whoami`               | Show the signed-in user                                                       |
+| Command                     | What it does                                                                                                 |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `edro builds ls`            | Your builds from the last 24h. Filters: `--status`, `--since`, `--branch`, `--limit`, `--all`, `--all-users` |
+| `edro builds get <rid>`     | One build                                                                                                    |
+| `edro builds jobs <rid>`    | A build's jobs and their output datasets                                                                     |
+| `edro builds watch <rid>`   | Wait for a build to finish; exits 5 if it doesn't succeed                                                    |
+| `edro schedules ls`         | Schedules that started your builds in the last 7 days                                                        |
+| `edro schedules runs <rid>` | A schedule's recent runs                                                                                     |
+| `edro open <rid>`           | Open a resource in the Foundry web UI (`--print` for the URL)                                                |
+| `edro ui`                   | Live list of your builds in the terminal (`--all-users` for everyone's)                                      |
+| `edro login` / `logout`     | Manage credentials                                                                                           |
+| `edro profiles ls\|use\|rm` | Manage profiles                                                                                              |
+| `edro whoami`               | Show the signed-in user                                                                                      |
+
+Build lists show your own builds by default: searching everyone's builds can take many seconds on a busy
+instance. Add `--all-users` to include them, and `--since 7d` to look further back.
 
 `edro <command> --help` lists a command's flags. Shell completions: `edro complete zsh` (or `bash`, `fish`,
 `powershell`) prints a script to `source`.

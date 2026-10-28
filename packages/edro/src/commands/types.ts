@@ -35,3 +35,8 @@ export const connectionFlags: Flag[] = [
   { name: "hostname", description: "Foundry host, overriding the profile" },
   demoFlag,
 ];
+export const allUsersFlag: Flag = {
+  name: "all-users",
+  description: "Include everyone's builds, not just yours (slower on busy instances)",
+  boolean: true,
+};
