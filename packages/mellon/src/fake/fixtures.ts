@@ -7,6 +7,8 @@ export const FAKE_HOSTNAME = "example.palantirfoundry.com";
 export const FAKE_TOKEN = "fake-token";
 export const FAKE_REDIRECT_PORT = 18765;
 export const FAKE_USER_ID = "00000000-0000-0000-0000-00000000a11c";
+/** Someone else on the fake instance. */
+export const OTHER_USER_ID = "00000000-0000-0000-0000-0000000000b0";
 
 export const DATASETS = {
   rawOrders: fakeRid("dataset", 1),
@@ -57,6 +59,8 @@ export function addBuild(
     branch?: string;
     scheduled?: boolean;
     outputs?: string[];
+    /** User ID that started the build (default: the fake current user). */
+    createdBy?: string;
   },
 ): Orchestration.Build {
   counter += 1;
@@ -86,7 +90,7 @@ export function addBuild(
     rid,
     branchName: opts.branch ?? "master",
     createdTime: new Date(opts.createdAt).toISOString(),
-    createdBy: FAKE_USER_ID,
+    createdBy: opts.createdBy ?? FAKE_USER_ID,
     fallbackBranches: [],
     jobRids,
     retryCount: 0,

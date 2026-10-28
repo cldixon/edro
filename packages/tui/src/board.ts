@@ -25,6 +25,8 @@ export interface BoardOptions {
   intervalMs: number;
   /** Upper bound for backoff after errors or rate limiting. */
   maxBackoffMs?: number;
+  /** Show everyone's builds, not just the current user's. */
+  allUsers?: boolean;
   now?: () => number;
 }
 
@@ -55,6 +57,8 @@ export class BuildBoard {
   detail: { build: Build; jobs: Job[] } | null = null;
   error: string | null = null;
   lastRefresh: number | null = null;
+  /** How long the last refresh took; slow responses stretch the polling interval. */
+  lastDurationMs = 0;
   private failures = 0;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
@@ -113,18 +117,25 @@ export class BuildBoard {
     if (this.timer) clearTimeout(this.timer);
   }
 
-  /** Delay before the next poll: the interval, doubled per consecutive failure. */
+  /**
+   * Delay before the next poll: the interval, or three times the last
+   * response time if that's longer (so a slow instance isn't queried
+   * nonstop), doubled per consecutive failure.
+   */
   nextDelay(): number {
     const max = this.options.maxBackoffMs ?? 5 * 60_000;
-    return Math.min(this.options.intervalMs * 2 ** this.failures, max);
+    const base = Math.max(this.options.intervalMs, 3 * this.lastDurationMs);
+    return Math.min(base * 2 ** this.failures, max);
   }
 
   async refresh(): Promise<void> {
     if (this.timer) clearTimeout(this.timer);
     const { client } = this.options;
+    const started = this.now();
     try {
       const selectedRid = this.builds[this.selected]?.rid;
-      this.builds = (await client.builds.search({ pageSize: 50 })).items;
+      const mine = !this.options.allUsers;
+      this.builds = (await client.builds.search({ pageSize: 50, mine })).items;
       const keep = this.builds.findIndex((b) => b.rid === selectedRid);
       this.selected =
         keep >= 0 ? keep : Math.min(this.selected, Math.max(0, this.builds.length - 1));
@@ -136,6 +147,7 @@ export class BuildBoard {
       this.error = null;
       this.failures = 0;
       this.lastRefresh = this.now();
+      this.lastDurationMs = this.lastRefresh - started;
     } catch (e) {
       const err = toEdroError(e);
       this.failures += 1;
@@ -197,7 +209,8 @@ export class BuildBoard {
 
   private renderList(): TextChunk[] {
     if (this.builds.length === 0) {
-      return line(this.lastRefresh ? "No builds in the last 7 days." : "Loading builds…");
+      const whose = this.options.allUsers ? "" : " of yours";
+      return line(this.lastRefresh ? `No builds${whose} in the last 24 hours.` : "Loading builds…");
     }
     const now = this.now();
     const rows = this.visibleRows();
@@ -246,7 +259,8 @@ export class BuildBoard {
   render(): void {
     const host = this.options.client.hostname;
     this.header.content = new StyledText([bold("edro"), fg(DIM)(` · builds · ${host}`)]);
-    this.bodyBox.title = this.detail ? "Build" : `Builds (${this.builds.length})`;
+    const which = this.options.allUsers ? "Builds" : "My builds";
+    this.bodyBox.title = this.detail ? "Build" : `${which} (${this.builds.length})`;
     this.body.content = new StyledText(
       this.detail ? this.renderDetail(this.detail.build, this.detail.jobs) : this.renderList(),
     );
@@ -256,7 +270,11 @@ export class BuildBoard {
     const state = this.error
       ? fg("#e06c75")(`  ${this.error} (retrying in ${Math.round(this.nextDelay() / 1000)}s)`)
       : fg(DIM)(
-          this.lastRefresh ? `  updated ${new Date(this.lastRefresh).toLocaleTimeString()}` : "",
+          this.lastRefresh
+            ? `  updated ${new Date(this.lastRefresh).toLocaleTimeString()}${
+                this.lastDurationMs >= 2000 ? ` (took ${formatDuration(this.lastDurationMs)})` : ""
+              }`
+            : "",
         );
     this.footer.content = new StyledText([fg(DIM)(keys), state]);
   }

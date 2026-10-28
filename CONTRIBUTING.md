@@ -61,3 +61,41 @@ not in the repo. Hostnames, IDs, names and tokens are replaced with fake values 
 written, and nothing is written if any original value survives. It writes
 `packages/mellon/fixtures/recorded.json`; read it before committing (gitleaks scans it too).
 `stateFromRecording` from `@edro/mellon/record` turns it into data the fake API can serve.
+
+## Releasing
+
+edro is published to npm as `edro` by `.github/workflows/release.yml` when a version tag is pushed.
+
+1. Set `version` in `packages/edro/package.json` and merge that change.
+2. Tag the merge commit and push the tag:
+
+   ```bash
+   git tag v0.1.0 && git push origin v0.1.0
+   ```
+
+The workflow checks that the tag matches the version, runs the checks, builds the package with
+`bun run build:npm` (into `dist/npm`) and publishes it with provenance. To check the package locally first:
+
+```bash
+bun run build:npm && (cd dist/npm && npm pack --dry-run)
+```
+
+### One-time npm setup
+
+The workflow publishes with npm [trusted publishing](https://docs.npmjs.com/trusted-publishers): no npm
+token is stored anywhere, and npm adds provenance. npm only lets a package trust a workflow once the
+package exists, so claim the name once by hand, from a personal machine:
+
+1. Create an npm account with two-factor authentication, and `npm login`.
+2. Publish a placeholder version from a clone:
+
+   ```bash
+   bun run build:npm && cd dist/npm && npm version 0.0.0-stage --no-git-tag-version && npm publish --access public --tag stage
+   ```
+
+   The `stage` tag keeps the placeholder off `latest`.
+
+3. On npmjs.com, open the `edro` package settings and add a trusted publisher: GitHub Actions, repository
+   `cldixon/edro`, workflow `release.yml`.
+
+After that, every release is just a version bump and a tag, as above.

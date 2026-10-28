@@ -5,6 +5,7 @@ export {
   type ClientOptions,
   collectPages,
   createClient,
+  DEFAULT_LOOKBACK_MS,
   type MellonClient,
   type PageQuery,
   webUrl,

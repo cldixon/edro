@@ -2,7 +2,7 @@ import { type Build, type BuildStatus, collectPages, isFinished, type Job } from
 import type { CommandContext } from "../context.ts";
 import { EXIT, UsageError } from "../exit.ts";
 import { formatAgo, formatDuration, formatStatus, parseSince, table } from "../format.ts";
-import { type CommandDef, connectionFlags, jsonFlag } from "./types.ts";
+import { allUsersFlag, type CommandDef, connectionFlags, jsonFlag } from "./types.ts";
 
 const BUILD_STATUSES: BuildStatus[] = ["running", "succeeded", "failed", "canceled"];
 
@@ -71,16 +71,17 @@ function printBuild(ctx: CommandContext, b: Build): void {
 export const buildCommands: CommandDef[] = [
   {
     path: ["builds", "ls"],
-    description: "List recent builds, newest first",
+    description: "List your recent builds, newest first",
     flags: [
       { name: "status", description: "Filter by status (comma-separated)", values: BUILD_STATUSES },
       {
         name: "since",
-        description: "Only builds started since, e.g. 6h, 2d or an ISO date (default 7d)",
+        description: "Only builds started since, e.g. 6h, 2d or an ISO date (default 24h)",
       },
       { name: "branch", description: "Filter by branch" },
       { name: "limit", description: "Maximum builds to show (default 20)" },
       { name: "all", description: "Fetch every matching build", boolean: true },
+      allUsersFlag,
       jsonFlag,
       ...connectionFlags,
     ],
@@ -93,6 +94,7 @@ export const buildCommands: CommandDef[] = [
         branch: typeof args.branch === "string" ? args.branch : undefined,
         since: typeof args.since === "string" ? parseSince(args.since, deps.now()) : undefined,
         pageSize: Math.min(limit, 100),
+        mine: !args["all-users"],
       };
       const builds = await collectPages(
         (pageToken) => client.builds.search({ ...query, pageToken }),

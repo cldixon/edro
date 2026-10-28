@@ -61,5 +61,6 @@ export function createDemoClient(clock: () => number = Date.now): MellonClient {
     hostname: FAKE_HOSTNAME,
     tokenProvider: async () => FAKE_TOKEN,
     fetch: createFakeFetch(state, { beforeRequest: (s) => advanceDemo(s, clock()) }),
+    now: clock,
   });
 }

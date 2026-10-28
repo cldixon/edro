@@ -1,0 +1,57 @@
+name: Release
+
+# Push a tag matching packages/edro/package.json's version (e.g. v0.1.0) to
+# publish edro to npm and create a GitHub release. See CONTRIBUTING.md.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # the GitHub release
+  id-token: write # npm trusted publishing
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      # Trusted publishing needs npm 11.5.1 or later.
+      - run: npm install -g npm@latest
+
+      - run: bun install --frozen-lockfile
+
+      - name: Check the tag matches the version
+        run: |
+          version="v$(jq -r .version packages/edro/package.json)"
+          if [ "$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME doesn't match packages/edro/package.json ($version)"
+            exit 1
+          fi
+
+      - run: bun run lint
+      - run: bun run typecheck
+      - run: bun test
+
+      - name: Pack
+        run: bun run build:npm && cd dist/npm && npm pack
+
+      # npm trusted publishing: no token. The edro package on npmjs.com trusts
+      # this workflow (cldixon/edro, release.yml), and npm adds provenance.
+      - name: Publish to npm
+        run: npm publish dist/npm/edro-*.tgz --access public
+
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/npm/edro-*.tgz --generate-notes

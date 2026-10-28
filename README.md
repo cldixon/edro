@@ -6,16 +6,31 @@ A command-line tool and terminal UI for Palantir Foundry, written in TypeScript.
 >
 > edro is an unofficial community project. It is not affiliated with or endorsed by Palantir.
 
+## Install
+
+edro runs on [Bun](https://bun.sh) 1.3.14 or later.
+
+```bash
+bun add -g edro
+```
+
+`npm install -g edro` works too, but Bun must still be installed to run it. Bun puts global commands in
+`~/.bun/bin`, which its installer adds to your PATH. To update later:
+
+```bash
+bun add -g edro@latest
+```
+
 ## Try it without an account
 
 `--demo` runs on made-up data with builds that start and finish in real time:
 
 ```bash
-bun run edro ui --demo
+edro ui --demo
 ```
 
 ```bash
-bun run edro builds ls --demo
+edro builds ls --demo
 ```
 
 ## Signing in
@@ -48,19 +63,22 @@ Which credentials win: an explicit `--profile`, then `--hostname` and the `FOUND
 
 ## Commands
 
-| Command                     | What it does                                                                  |
-| --------------------------- | ----------------------------------------------------------------------------- |
-| `edro builds ls`            | Recent builds. Filters: `--status`, `--since`, `--branch`, `--limit`, `--all` |
-| `edro builds get <rid>`     | One build                                                                     |
-| `edro builds jobs <rid>`    | A build's jobs and their output datasets                                      |
-| `edro builds watch <rid>`   | Wait for a build to finish; exits 5 if it doesn't succeed                     |
-| `edro schedules ls`         | Schedules that started builds recently                                        |
-| `edro schedules runs <rid>` | A schedule's recent runs                                                      |
-| `edro open <rid>`           | Open a resource in the Foundry web UI (`--print` for the URL)                 |
-| `edro ui`                   | Live build list in the terminal                                               |
-| `edro login` / `logout`     | Manage credentials                                                            |
-| `edro profiles ls\|use\|rm` | Manage profiles                                                               |
-| `edro whoami`               | Show the signed-in user                                                       |
+| Command                     | What it does                                                                                                 |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `edro builds ls`            | Your builds from the last 24h. Filters: `--status`, `--since`, `--branch`, `--limit`, `--all`, `--all-users` |
+| `edro builds get <rid>`     | One build                                                                                                    |
+| `edro builds jobs <rid>`    | A build's jobs and their output datasets                                                                     |
+| `edro builds watch <rid>`   | Wait for a build to finish; exits 5 if it doesn't succeed                                                    |
+| `edro schedules ls`         | Schedules that started your builds in the last 7 days                                                        |
+| `edro schedules runs <rid>` | A schedule's recent runs                                                                                     |
+| `edro open <rid>`           | Open a resource in the Foundry web UI (`--print` for the URL)                                                |
+| `edro ui`                   | Live list of your builds in the terminal (`--all-users` for everyone's)                                      |
+| `edro login` / `logout`     | Manage credentials                                                                                           |
+| `edro profiles ls\|use\|rm` | Manage profiles                                                                                              |
+| `edro whoami`               | Show the signed-in user                                                                                      |
+
+Build lists show your own builds by default: searching everyone's builds can take many seconds on a busy
+instance. Add `--all-users` to include them, and `--since 7d` to look further back.
 
 `edro <command> --help` lists a command's flags. Shell completions: `edro complete zsh` (or `bash`, `fish`,
 `powershell`) prints a script to `source`.
@@ -93,7 +111,8 @@ The CLI and TUI never call the Foundry SDK directly; everything Foundry-specific
 Tests run the real SDK against a fake Foundry API (`packages/mellon/src/fake`), so they need no network or
 credentials; `--demo` uses the same fake.
 
-Requires [Bun](https://bun.sh) 1.3.14 or later.
+Developing edro needs [Bun](https://bun.sh) 1.4.4 or later (older versions can't read `bun.lock`). From a
+clone, `bun run edro` runs the CLI from source.
 
 ```bash
 bun install
