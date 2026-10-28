@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Secrets and local config: never commit these
+.env
+.env.*
+*.token
+*.pem
+.edro/
+profiles.local.*
+
+# Recorded-fixture scratch space
+fixtures/.scratch/
+
+# Editor and OS
+.DS_Store
+.idea/
+.vscode/
+*.log
