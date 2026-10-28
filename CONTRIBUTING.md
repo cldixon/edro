@@ -82,12 +82,20 @@ bun run build:npm && (cd dist/npm && npm pack --dry-run)
 
 ### One-time npm setup
 
-The workflow publishes through npm's trusted publishing, so no npm token is stored in GitHub. npm only
-lets you configure that on a package that already exists, so the first release needs a token:
+The workflow publishes with npm [trusted publishing](https://docs.npmjs.com/trusted-publishers): no npm
+token is stored anywhere, and npm adds provenance. npm only lets a package trust a workflow once the
+package exists, so claim the name once by hand, from a personal machine:
 
-1. Create an npm account with two-factor authentication.
-2. Create a granular access token that can publish (it must be allowed to bypass 2FA, since CI can't
-   answer a 2FA prompt) and add it to this repository as the `NPM_TOKEN` Actions secret.
-3. Push the first tag. Once `edro` exists on npm, open its settings on npmjs.com, add a trusted
-   publisher (GitHub Actions, repository `cldixon/edro`, workflow `release.yml`), then delete the token
-   and the `NPM_TOKEN` secret.
+1. Create an npm account with two-factor authentication, and `npm login`.
+2. Publish a placeholder version from a clone:
+
+   ```bash
+   bun run build:npm && cd dist/npm && npm version 0.0.0-stage --no-git-tag-version && npm publish --access public --tag stage
+   ```
+
+   The `stage` tag keeps the placeholder off `latest`.
+
+3. On npmjs.com, open the `edro` package settings and add a trusted publisher: GitHub Actions, repository
+   `cldixon/edro`, workflow `release.yml`.
+
+After that, every release is just a version bump and a tag, as above.
