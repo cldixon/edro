@@ -1,0 +1,9 @@
+# Copy to .gitleaks.local.toml (gitignored) and replace the hostname.
+# Never commit the copy: the rule itself would leak the hostname.
+[extend]
+path = ".gitleaks.toml"
+
+[[rules]]
+id = "employer-foundry-host"
+description = "Hostname of a Foundry instance that must never appear in edro"
+regex = '''(?i)your-employer\.palantirfoundry\.com'''
