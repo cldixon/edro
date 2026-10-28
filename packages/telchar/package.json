@@ -1,8 +1,8 @@
 {
-  "name": "@edro/tui",
+  "name": "@edro/telchar",
   "version": "0.0.0",
   "private": true,
-  "description": "OpenTUI app for edro, started with `edro ui`.",
+  "description": "telchar: the edro TUI (built on OpenTUI), started with `edro ui`.",
   "license": "MIT",
   "type": "module",
   "exports": {

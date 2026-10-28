@@ -14,7 +14,7 @@
     },
     "packages/edro": {
       "name": "edro",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "bin": {
         "edro": "./src/index.ts",
       },
@@ -23,7 +23,7 @@
         "@bomb.sh/tab": "0.0.22",
         "@clack/prompts": "1.8.1",
         "@edro/mellon": "workspace:*",
-        "@edro/tui": "workspace:*",
+        "@edro/telchar": "workspace:*",
       },
     },
     "packages/mellon": {
@@ -37,8 +37,8 @@
         "@osdk/oauth": "1.14.0",
       },
     },
-    "packages/tui": {
-      "name": "@edro/tui",
+    "packages/telchar": {
+      "name": "@edro/telchar",
       "version": "0.0.0",
       "dependencies": {
         "@edro/mellon": "workspace:*",
@@ -79,7 +79,7 @@
 
     "@edro/mellon": ["@edro/mellon@workspace:packages/mellon"],
 
-    "@edro/tui": ["@edro/tui@workspace:packages/tui"],
+    "@edro/telchar": ["@edro/telchar@workspace:packages/telchar"],
 
     "@opentui/core": ["@opentui/core@0.7.0", "", { "dependencies": { "bun-ffi-structs": "0.3.1", "diff": "9.0.0", "marked": "17.0.1", "string-width": "7.2.0" }, "optionalDependencies": { "@opentui/core-darwin-arm64": "0.7.0", "@opentui/core-darwin-x64": "0.7.0", "@opentui/core-linux-arm64": "0.7.0", "@opentui/core-linux-arm64-musl": "0.7.0", "@opentui/core-linux-x64": "0.7.0", "@opentui/core-linux-x64-musl": "0.7.0", "@opentui/core-win32-arm64": "0.7.0", "@opentui/core-win32-x64": "0.7.0" }, "peerDependencies": { "web-tree-sitter": "0.25.10" } }, "sha512-2iWBw9oo+ZJfPbOWeTLXfDV63yTDRfclxltI4IgTa6n7OB90x5xplLMH3y9DXhnWibzTui00GbK3ZCwKfUU1SQ=="],
 
