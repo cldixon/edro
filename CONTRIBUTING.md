@@ -61,3 +61,33 @@ not in the repo. Hostnames, IDs, names and tokens are replaced with fake values 
 written, and nothing is written if any original value survives. It writes
 `packages/mellon/fixtures/recorded.json`; read it before committing (gitleaks scans it too).
 `stateFromRecording` from `@edro/mellon/record` turns it into data the fake API can serve.
+
+## Releasing
+
+edro is published to npm as `edro` by `.github/workflows/release.yml` when a version tag is pushed.
+
+1. Set `version` in `packages/edro/package.json` and merge that change.
+2. Tag the merge commit and push the tag:
+
+   ```bash
+   git tag v0.1.0 && git push origin v0.1.0
+   ```
+
+The workflow checks that the tag matches the version, runs the checks, builds the package with
+`bun run build:npm` (into `dist/npm`) and publishes it with provenance. To check the package locally first:
+
+```bash
+bun run build:npm && (cd dist/npm && npm pack --dry-run)
+```
+
+### One-time npm setup
+
+The workflow publishes through npm's trusted publishing, so no npm token is stored in GitHub. npm only
+lets you configure that on a package that already exists, so the first release needs a token:
+
+1. Create an npm account with two-factor authentication.
+2. Create a granular access token that can publish (it must be allowed to bypass 2FA, since CI can't
+   answer a 2FA prompt) and add it to this repository as the `NPM_TOKEN` Actions secret.
+3. Push the first tag. Once `edro` exists on npm, open its settings on npmjs.com, add a trusted
+   publisher (GitHub Actions, repository `cldixon/edro`, workflow `release.yml`), then delete the token
+   and the `NPM_TOKEN` secret.

@@ -6,16 +6,31 @@ A command-line tool and terminal UI for Palantir Foundry, written in TypeScript.
 >
 > edro is an unofficial community project. It is not affiliated with or endorsed by Palantir.
 
+## Install
+
+edro runs on [Bun](https://bun.sh) 1.3.14 or later.
+
+```bash
+bun add -g edro
+```
+
+`npm install -g edro` works too, but Bun must still be installed to run it. Bun puts global commands in
+`~/.bun/bin`, which its installer adds to your PATH. To update later:
+
+```bash
+bun add -g edro@latest
+```
+
 ## Try it without an account
 
 `--demo` runs on made-up data with builds that start and finish in real time:
 
 ```bash
-bun run edro ui --demo
+edro ui --demo
 ```
 
 ```bash
-bun run edro builds ls --demo
+edro builds ls --demo
 ```
 
 ## Signing in
@@ -96,7 +111,8 @@ The CLI and TUI never call the Foundry SDK directly; everything Foundry-specific
 Tests run the real SDK against a fake Foundry API (`packages/mellon/src/fake`), so they need no network or
 credentials; `--demo` uses the same fake.
 
-Requires [Bun](https://bun.sh) 1.3.14 or later.
+Developing edro needs [Bun](https://bun.sh) 1.4.4 or later (older versions can't read `bun.lock`). From a
+clone, `bun run edro` runs the CLI from source.
 
 ```bash
 bun install

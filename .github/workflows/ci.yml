@@ -19,6 +19,7 @@ jobs:
       - run: bun test
       - run: bun run build
       - run: ./dist/edro --version
+      - run: bun run build:npm
 
   secrets:
     runs-on: ubuntu-latest

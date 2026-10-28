@@ -1,0 +1,47 @@
+name: Release
+
+# Publishes edro to npm when a version tag is pushed:
+#   1. set "version" in packages/edro/package.json and merge it
+#   2. git tag v<version> && git push origin v<version>
+# See CONTRIBUTING.md for the one-time npm setup.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  # npm trusted publishing (no long-lived token) and provenance.
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm 11.5.1 or later.
+      - run: npm install -g npm@11
+      - run: bun install --frozen-lockfile
+      - name: Check the tag matches the package version
+        run: |
+          version=$(bun -e 'console.log((await Bun.file("packages/edro/package.json").json()).version)')
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME doesn't match packages/edro/package.json version $version" >&2
+            exit 1
+          fi
+      - run: bun run lint
+      - run: bun run typecheck
+      - run: bun test
+      - run: bun run build:npm
+      - run: npm publish --provenance --access public
+        working-directory: dist/npm
+        env:
+          # Only needed until trusted publishing is set up on npmjs.com.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
