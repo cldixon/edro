@@ -23,7 +23,7 @@ These apply to every file, commit, test, fixture, comment, PR and issue.
   - `record/` records and scrubs fixtures from the personal Developer Tier (`bun run record-fixtures`).
 - `packages/edro`: the CLI. Commands live in `src/commands/`; data commands support `--json`.
   Exit codes are in `src/exit.ts` and are part of the contract with scripts, like `--json`.
-- `packages/tui`: the OpenTUI app, started by `edro ui`.
+- `packages/telchar`: the TUI (built on OpenTUI), started by `edro ui`.
 
 Tests never touch the network: run commands against the fake API (see `packages/edro/src/testing.ts`).
 

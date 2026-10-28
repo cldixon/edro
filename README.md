@@ -104,7 +104,7 @@ JSON on stderr: `{"error": {"kind": "...", "message": "...", "hint": "..."}}`.
 packages/
   mellon/  core library: Foundry client, auth, profiles, domain models
   edro/    the CLI (Bombshell args and tab completions)
-  tui/     the OpenTUI app, started with `edro ui`
+  telchar/ the TUI (built on OpenTUI), started with `edro ui`
 ```
 
 The CLI and TUI never call the Foundry SDK directly; everything Foundry-specific goes through `mellon`.

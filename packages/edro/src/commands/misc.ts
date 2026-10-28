@@ -35,7 +35,7 @@ export const miscCommands: CommandDef[] = [
       const client = await ctx.client();
       const interval = Number(ctx.args.interval ?? 10);
       // Loaded lazily so plain CLI commands don't pay for the native renderer.
-      const { runTui } = await import("@edro/tui");
+      const { runTui } = await import("@edro/telchar");
       await runTui({
         client,
         openUrl: ctx.deps.openUrl,

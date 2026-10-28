@@ -13,6 +13,6 @@
     "@bomb.sh/tab": "0.0.22",
     "@clack/prompts": "1.8.1",
     "@edro/mellon": "workspace:*",
-    "@edro/tui": "workspace:*"
+    "@edro/telchar": "workspace:*"
   }
 }

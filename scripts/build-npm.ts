@@ -17,7 +17,7 @@ const cli = await readJson("packages/edro/package.json");
 const workspaces = [
   cli,
   await readJson("packages/mellon/package.json"),
-  await readJson("packages/tui/package.json"),
+  await readJson("packages/telchar/package.json"),
 ];
 
 // Third-party dependencies of every bundled workspace, at their pinned versions.
