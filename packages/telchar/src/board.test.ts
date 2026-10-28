@@ -91,3 +91,32 @@ test("polls less often when Foundry responds slowly", async () => {
   expect(setup.captureCharFrame()).toContain("(took 8s)");
   expect(setup.captureCharFrame()).toContain("My builds");
 });
+
+test("quitting while a refresh is in flight doesn't draw on the destroyed screen", async () => {
+  const client = createDemoClient();
+  const search = client.builds.search;
+  let release!: () => void;
+  const waiting = new Promise<void>((r) => {
+    release = r;
+  });
+  let searches = 0;
+  // A slow instance: the search answers only after the user has quit.
+  client.builds.search = async (q) => {
+    searches += 1;
+    await waiting;
+    return search(q);
+  };
+  const quit = await createTestRenderer({ width: 140, height: 20 });
+  const board = new BuildBoard(quit.renderer, {
+    client,
+    openUrl: async () => {},
+    intervalMs: 20,
+  });
+  const inFlight = board.refresh();
+  await quit.dispose(); // Ctrl+C destroys the renderer
+  release();
+  await expect(inFlight).resolves.toBeUndefined();
+  // And it stops polling.
+  await Bun.sleep(100);
+  expect(searches).toBe(1);
+});

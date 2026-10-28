@@ -104,6 +104,8 @@ export class BuildBoard {
     layout.add(this.bodyBox);
     layout.add(this.footer);
     renderer.root.add(layout);
+    // Ctrl+C destroys the renderer directly, so stop as soon as it goes.
+    renderer.on("destroy", () => this.stop());
     this.render();
   }
 
@@ -153,6 +155,8 @@ export class BuildBoard {
       this.failures += 1;
       this.error = `${err.message}${err.hint ? ` ${err.hint}` : ""}`;
     }
+    // The user may have quit while Foundry was still answering.
+    if (this.renderer.isDestroyed) return;
     this.render();
     if (!this.stopped) this.timer = setTimeout(() => void this.refresh(), this.nextDelay());
   }
@@ -257,6 +261,8 @@ export class BuildBoard {
   }
 
   render(): void {
+    // Nothing can be drawn once the screen is gone (e.g. after Ctrl+C).
+    if (this.renderer.isDestroyed) return;
     const host = this.options.client.hostname;
     this.header.content = new StyledText([bold("edro"), fg(DIM)(` · builds · ${host}`)]);
     const which = this.options.allUsers ? "Builds" : "My builds";
