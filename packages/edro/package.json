@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "An unofficial command-line and terminal UI for Foundry.",
+  "license": "MIT",
   "type": "module",
   "bin": {
     "edro": "./src/index.ts"

@@ -19,3 +19,24 @@ jobs:
       - run: bun test
       - run: bun run build
       - run: ./dist/edro --version
+
+  secrets:
+    runs-on: ubuntu-latest
+    env:
+      GITLEAKS_VERSION: 8.30.1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install gitleaks
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+      # Optional: a repository secret holding a full .gitleaks.local.toml, so CI
+      # also blocks hostnames that must never be committed (see CONTRIBUTING.md).
+      - name: Load private gitleaks rules
+        env:
+          GITLEAKS_LOCAL_CONFIG: ${{ secrets.GITLEAKS_LOCAL_CONFIG }}
+        if: env.GITLEAKS_LOCAL_CONFIG != ''
+        run: printf '%s\n' "$GITLEAKS_LOCAL_CONFIG" > .gitleaks.local.toml
+      - run: scripts/gitleaks.sh history

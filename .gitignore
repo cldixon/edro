@@ -21,3 +21,6 @@ fixtures/.scratch/
 .idea/
 .vscode/
 *.log
+
+# Personal gitleaks rules (e.g. your employer's hostname)
+.gitleaks.local.toml

@@ -1,6 +1,7 @@
 {
   "name": "edro-monorepo",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "workspaces": [
     "packages/*"
@@ -16,6 +17,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.6.3",
     "@types/bun": "1.4.4",
+    "lefthook": "2.2.2",
     "typescript": "^5.9.0"
   }
 }

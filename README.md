@@ -41,3 +41,11 @@ bun run edro ui
 | `bun run build`     | Compile a single `dist/edro` binary         |
 
 Shell completions: `edro complete zsh` (or `bash`, `fish`, `powershell`) prints a script to `source`.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Never commit anything from a real Foundry instance.
+
+## License
+
+[MIT](LICENSE)

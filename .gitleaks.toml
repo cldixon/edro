@@ -1,0 +1,26 @@
+# Secret scanning for edro. Runs as a pre-commit hook (lefthook) and in CI.
+# To also block your employer's Foundry hostname, see CONTRIBUTING.md; that
+# rule lives in an uncommitted .gitleaks.local.toml, never in this file.
+title = "edro"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "foundry-token-assignment"
+description = "A Foundry token or client secret assigned to a variable"
+regex = '''(?i)\b(?:FOUNDRY_TOKEN|FOUNDRY_CLIENT_SECRET|CLIENT_SECRET)\b\s*[:=]\s*["']?([A-Za-z0-9._~+/-]{16,})'''
+secretGroup = 1
+keywords = ["foundry_token", "foundry_client_secret", "client_secret"]
+
+[[rules]]
+id = "bearer-token"
+description = "A literal bearer token, e.g. in an Authorization header"
+regex = '''(?i)\bbearer\s+([A-Za-z0-9._~+/-]{20,}=*)'''
+secretGroup = 1
+keywords = ["bearer"]
+
+[[rules.allowlists]]
+description = "Placeholders and shell variables in docs and examples"
+regexTarget = "match"
+regexes = ['''(?i)bearer\s+\$''', '''(?i)<[a-z_-]+>''']
