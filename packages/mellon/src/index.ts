@@ -1,7 +1,15 @@
+export * from "./auth/index.ts";
 export {
-  type CurrentUser,
+  type BuildQuery,
+  buildSearchFilter,
+  type ClientOptions,
+  collectPages,
   createClient,
   type MellonClient,
-  NotImplementedError,
-  type Profile,
+  type PageQuery,
+  webUrl,
 } from "./client.ts";
+export { EdroError, type ErrorKind, toEdroError } from "./errors.ts";
+export { createDemoClient } from "./fake/demo.ts";
+export { formatAgo, formatDuration } from "./format.ts";
+export * from "./models.ts";

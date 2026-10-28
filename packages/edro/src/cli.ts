@@ -1,8 +1,10 @@
 import { parse } from "@bomb.sh/args";
+import { EdroError, toEdroError } from "@edro/mellon";
 import pkg from "../package.json" with { type: "json" };
-import { type CommandDef, commands, globalFlags } from "./commands.ts";
+import { type CommandDef, commands, type Flag, globalFlags } from "./commands/index.ts";
 import { runCompletions } from "./completions.ts";
-import { type Io, processIo } from "./io.ts";
+import { createContext, type Deps, defaultDeps } from "./context.ts";
+import { EXIT, exitCodeFor, UsageError } from "./exit.ts";
 
 /** Picks the command whose path matches the longest prefix of the positionals. */
 export function findCommand(
@@ -17,48 +19,109 @@ export function findCommand(
   return best && { command: best, rest: positionals.slice(best.path.length) };
 }
 
-export function helpText(): string {
-  const width = Math.max(...commands.map((c) => c.path.join(" ").length), "complete".length);
-  const lines = [
-    `edro ${pkg.version}: an unofficial CLI and TUI for Foundry`,
+function columns(rows: Array<[string, string]>): string[] {
+  const width = Math.max(...rows.map(([a]) => a.length));
+  return rows.map(([a, b]) => `  ${a.padEnd(width)}  ${b}`);
+}
+
+export function helpText(defs: CommandDef[] = commands, title?: string): string {
+  return [
+    title ?? `edro ${pkg.version}: an unofficial CLI and TUI for Foundry`,
     "",
     "Usage: edro <command> [flags]",
     "",
     "Commands:",
-    ...commands.map((c) => `  ${c.path.join(" ").padEnd(width)}  ${c.description}`),
-    `  ${"complete".padEnd(width)}  Print shell completions (zsh, bash, fish, powershell)`,
+    ...columns([
+      ...defs.map((c): [string, string] => [
+        [...c.path, c.usage].filter(Boolean).join(" "),
+        c.description,
+      ]),
+      ...(title
+        ? []
+        : [
+            ["complete <shell>", "Print shell completions (zsh, bash, fish, powershell)"] as [
+              string,
+              string,
+            ],
+          ]),
+    ]),
     "",
-    "Flags:",
-    "  --help       Show help",
-    "  --version    Show the edro version",
-    "  --json       Print machine-readable JSON (data commands)",
-  ];
-  return lines.join("\n");
+    "Run `edro <command> --help` for a command's flags.",
+  ].join("\n");
 }
 
-export async function main(argv: string[], io: Io = processIo): Promise<number> {
-  // Completion requests pass raw words through untouched.
-  if (argv[0] === "complete") return runCompletions(commands, argv.slice(1));
+function flagLabel(f: Flag): string {
+  return `${f.alias ? `-${f.alias}, ` : ""}--${f.name}${f.boolean ? "" : " <value>"}`;
+}
 
-  const booleans = [...globalFlags, ...commands.flatMap((c) => c.flags ?? [])]
-    .filter((f) => f.boolean)
-    .map((f) => f.name);
-  const args = parse(argv, { boolean: booleans, alias: { h: "help", v: "version" } });
+export function commandHelp(def: CommandDef): string {
+  return [
+    def.description,
+    "",
+    `Usage: edro ${[...def.path, def.usage].filter(Boolean).join(" ")} [flags]`,
+    ...(def.flags?.length
+      ? ["", "Flags:", ...columns(def.flags.map((f) => [flagLabel(f), f.description]))]
+      : []),
+  ].join("\n");
+}
+
+function printError(e: unknown, deps: Deps, json: boolean): number {
+  if (e instanceof UsageError) {
+    if (json) deps.io.err(JSON.stringify({ error: { kind: "usage", message: e.message } }));
+    else deps.io.err(`error: ${e.message}`);
+    return EXIT.usage;
+  }
+  const err = e instanceof EdroError ? e : toEdroError(e);
+  if (json) {
+    deps.io.err(JSON.stringify({ error: err.toJSON() }));
+  } else {
+    deps.io.err(`error: ${err.message}`);
+    if (err.hint) deps.io.err(`hint: ${err.hint}`);
+  }
+  return exitCodeFor(err);
+}
+
+export async function main(argv: string[], deps: Deps = defaultDeps()): Promise<number> {
+  // Completion requests pass raw words through untouched.
+  if (argv[0] === "complete") return runCompletions(commands, argv.slice(1), deps.io);
+
+  const allFlags = [...globalFlags, ...commands.flatMap((c) => c.flags ?? [])];
+  const args = parse(argv, {
+    boolean: [...new Set(allFlags.filter((f) => f.boolean).map((f) => f.name))],
+    string: [...new Set(allFlags.filter((f) => !f.boolean).map((f) => f.name))],
+    alias: { h: "help", v: "version" },
+  });
   const positionals = args._.map(String);
+  const json = !!args.json;
 
   if (args.version) {
-    io.out(pkg.version);
-    return 0;
+    deps.io.out(pkg.version);
+    return EXIT.ok;
   }
-  if (positionals.length === 0 || args.help) {
-    io.out(helpText());
-    return 0;
+  if (positionals.length === 0) {
+    deps.io.out(helpText());
+    return EXIT.ok;
   }
 
   const match = findCommand(positionals);
   if (!match) {
-    io.err(`edro: unknown command "${positionals.join(" ")}". Run \`edro --help\`.`);
-    return 1;
+    // `edro builds` on its own: show that group's commands.
+    const group = commands.filter((c) => c.path[0] === positionals[0] && c.path.length > 1);
+    if (group.length && positionals.length === 1) {
+      deps.io.out(helpText(group, `edro ${positionals[0]}`));
+      return args.help ? EXIT.ok : EXIT.usage;
+    }
+    deps.io.err(`error: unknown command "${positionals.join(" ")}". Run \`edro --help\`.`);
+    return EXIT.usage;
   }
-  return match.command.run({ args, io, rest: match.rest });
+  if (args.help) {
+    deps.io.out(commandHelp(match.command));
+    return EXIT.ok;
+  }
+
+  try {
+    return await match.command.run(createContext(args, match.rest, deps));
+  } catch (e) {
+    return printError(e, deps, json);
+  }
 }
