@@ -1,4 +1,5 @@
 import type * as Orchestration from "@osdk/foundry.orchestration";
+import { pkceChallenge } from "../auth/oauth.ts";
 import type { FakeFoundryState } from "./state.ts";
 
 // A fake `fetch` that answers the subset of the Platform API edro uses, from
@@ -142,23 +143,89 @@ const routes: Array<[method: string, pattern: RegExp, handler: Handler]> = [
 
 async function tokenEndpoint(req: Request, state: FakeFoundryState): Promise<Response> {
   const form = new URLSearchParams(await req.text());
-  let id = form.get("client_id");
-  let secret = form.get("client_secret");
-  const basic = req.headers.get("Authorization")?.match(/^Basic (.+)$/)?.[1];
-  if (basic) {
-    [id, secret] = atob(basic).split(":").map(decodeURIComponent) as [string, string];
+  const issue = (clientId: string, withRefresh: boolean) => {
+    const token = `fake-oauth-token-${state.tokens.length}`;
+    state.tokens.push(token);
+    let refresh: string | undefined;
+    if (withRefresh) {
+      refresh = `fake-refresh-token-${state.tokens.length}`;
+      state.refreshTokens[refresh] = clientId;
+    }
+    return json({
+      access_token: token,
+      token_type: "bearer",
+      expires_in: 3600,
+      scope: form.get("scope"),
+      ...(refresh ? { refresh_token: refresh } : {}),
+    });
+  };
+  const invalid = (error: string) => json({ error }, 400);
+
+  switch (form.get("grant_type")) {
+    case "client_credentials": {
+      let id = form.get("client_id");
+      let secret = form.get("client_secret");
+      const basic = req.headers.get("Authorization")?.match(/^Basic (.+)$/)?.[1];
+      if (basic) [id, secret] = atob(basic).split(":").map(decodeURIComponent) as [string, string];
+      if (!id || state.oauthClients[id] !== secret) return json({ error: "invalid_client" }, 401);
+      return issue(id, false);
+    }
+    case "authorization_code": {
+      const code = form.get("code") ?? "";
+      const grant = state.authCodes[code];
+      delete state.authCodes[code];
+      if (
+        !grant ||
+        grant.clientId !== form.get("client_id") ||
+        grant.redirectUri !== form.get("redirect_uri")
+      ) {
+        return invalid("invalid_grant");
+      }
+      if ((await pkceChallenge(form.get("code_verifier") ?? "")) !== grant.challenge) {
+        return invalid("invalid_grant");
+      }
+      return issue(grant.clientId, grant.scope.split(" ").includes("offline_access"));
+    }
+    case "refresh_token": {
+      const old = form.get("refresh_token") ?? "";
+      const clientId = state.refreshTokens[old];
+      if (!clientId || clientId !== form.get("client_id")) return invalid("invalid_grant");
+      // Rotate: the old refresh token stops working.
+      delete state.refreshTokens[old];
+      return issue(clientId, true);
+    }
+    default:
+      return invalid("unsupported_grant_type");
   }
-  if (form.get("grant_type") !== "client_credentials" || !id || state.oauthClients[id] !== secret) {
-    return json({ error: "invalid_client" }, 401);
+}
+
+/**
+ * Plays the user approving the sign-in on Foundry's authorization page: checks
+ * the request and returns the redirect URL (with a code) the browser would follow.
+ */
+export function fakeAuthorize(state: FakeFoundryState, authorizeUrl: string): string {
+  const url = new URL(authorizeUrl);
+  const p = url.searchParams;
+  const clientId = p.get("client_id") ?? "";
+  const redirect = p.get("redirect_uri") ?? "";
+  const back = new URL(redirect);
+  back.searchParams.set("state", p.get("state") ?? "");
+  if (
+    !state.publicClients[clientId]?.includes(redirect) ||
+    p.get("code_challenge_method") !== "S256"
+  ) {
+    back.searchParams.set("error", "invalid_request");
+    return back.toString();
   }
-  const token = `fake-oauth-token-${state.tokens.length}`;
-  state.tokens.push(token);
-  return json({
-    access_token: token,
-    token_type: "bearer",
-    expires_in: 3600,
-    scope: form.get("scope"),
-  });
+  const code = `fake-code-${Object.keys(state.authCodes).length + 1}-${Date.now()}`;
+  state.authCodes[code] = {
+    clientId,
+    redirectUri: redirect,
+    challenge: p.get("code_challenge") ?? "",
+    scope: p.get("scope") ?? "",
+  };
+  back.searchParams.set("code", code);
+  return back.toString();
 }
 
 export function createFakeFetch(

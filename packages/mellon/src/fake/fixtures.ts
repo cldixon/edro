@@ -5,6 +5,7 @@ import { type FakeFoundryState, fakeRid } from "./state.ts";
 
 export const FAKE_HOSTNAME = "example.palantirfoundry.com";
 export const FAKE_TOKEN = "fake-token";
+export const FAKE_REDIRECT_PORT = 18765;
 export const FAKE_USER_ID = "00000000-0000-0000-0000-00000000a11c";
 
 export const DATASETS = {
@@ -24,6 +25,9 @@ export function emptyState(): FakeFoundryState {
   return {
     tokens: [FAKE_TOKEN],
     oauthClients: { "fake-client-id": "fake-client-secret" },
+    publicClients: { "fake-public-client": [`http://127.0.0.1:${FAKE_REDIRECT_PORT}/callback`] },
+    authCodes: {},
+    refreshTokens: {},
     currentUser: {
       id: FAKE_USER_ID,
       username: "ada.example",

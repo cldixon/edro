@@ -1,6 +1,7 @@
 import { createConfidentialOauthClient } from "@osdk/oauth";
 import { EdroError } from "../errors.ts";
 import { type AuthType, type Config, normalizeHostname, type Profile } from "./config.ts";
+import { refreshingTokenProvider } from "./oauth.ts";
 import type { SecretStore } from "./secrets.ts";
 
 export const DEFAULT_SCOPES = ["api:orchestration-read", "api:admin-read"];
@@ -50,6 +51,15 @@ export function tokenProviderFor(
   fetchFn?: typeof globalThis.fetch,
 ): () => Promise<string> {
   if (profile.auth === "token") return async () => secret;
+  if (profile.auth === "oauth") {
+    if (!profile.clientId) throw new EdroError("Browser sign-in needs a client ID.", "config");
+    return refreshingTokenProvider({
+      hostname: profile.hostname,
+      clientId: profile.clientId,
+      refreshToken: secret,
+      fetch: fetchFn,
+    });
+  }
   if (!profile.clientId)
     throw new EdroError("Client-credentials auth needs a client ID.", "config");
   return clientCredentials(
@@ -126,6 +136,29 @@ export async function resolveConnection(input: ResolveInput): Promise<Connection
       "auth",
       `Run \`edro login --profile ${profileName}\`, or set ${ENV.token}.`,
     );
+    if (profile.auth === "oauth") {
+      // Browser sign-in: a refresh token when Foundry issued one, else the
+      // access token it returned (valid until it expires).
+      const refreshToken = await secrets.get(profileName, "refresh_token");
+      const accessToken = refreshToken ? null : await secrets.get(profileName, "token");
+      if ((!refreshToken && !accessToken) || !profile.clientId) throw missing;
+      const name = profileName;
+      return {
+        hostname,
+        auth: "oauth",
+        profile: profileName,
+        source: "profile",
+        tokenProvider: refreshToken
+          ? refreshingTokenProvider({
+              hostname,
+              clientId: profile.clientId,
+              refreshToken,
+              fetch: input.fetch,
+              onRotate: (t) => secrets.set(name, "refresh_token", t),
+            })
+          : async () => accessToken as string,
+      };
+    }
     if (profile.auth === "client-credentials") {
       const secret = await secrets.get(profileName, "client_secret");
       if (!secret || !profile.clientId) throw missing;
