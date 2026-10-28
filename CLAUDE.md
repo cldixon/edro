@@ -20,6 +20,7 @@ These apply to every file, commit, test, fixture, comment, PR and issue.
   - `client.ts` wraps the SDK and returns domain models (`models.ts`), which are also the `--json` output.
   - `auth/` handles profiles (`config.toml`), keychain secrets and credential resolution.
   - `fake/` is a fake Foundry API (a fake `fetch`) with made-up data; tests and `--demo` use it.
+  - `record/` records and scrubs fixtures from the personal Developer Tier (`bun run record-fixtures`).
 - `packages/edro`: the CLI. Commands live in `src/commands/`; data commands support `--json`.
   Exit codes are in `src/exit.ts` and are part of the contract with scripts, like `--json`.
 - `packages/tui`: the OpenTUI app, started by `edro ui`.

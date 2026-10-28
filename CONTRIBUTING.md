@@ -46,3 +46,18 @@ To have CI enforce the same rules, store the full contents of your `.gitleaks.lo
 repository secret named `GITLEAKS_LOCAL_CONFIG`. The `secrets` CI job writes it to disk before
 scanning. Secrets aren't available to pull requests from forks, so those are only checked against
 the shared config.
+
+## Recording fixtures
+
+Fixtures may only come from your personal Developer Tier. To record a scrubbed snapshot (current user,
+recent builds and jobs, and their schedules), sign in to it with `edro login`, then:
+
+```bash
+EDRO_FIXTURE_HOSTS=<your-dev-tier-host> bun run record-fixtures
+```
+
+The script refuses any host not listed in `EDRO_FIXTURE_HOSTS`. Keep that variable in your environment,
+not in the repo. Hostnames, IDs, names and tokens are replaced with fake values before anything is
+written, and nothing is written if any original value survives. It writes
+`packages/mellon/fixtures/recorded.json`; read it before committing (gitleaks scans it too).
+`stateFromRecording` from `@edro/mellon/record` turns it into data the fake API can serve.
