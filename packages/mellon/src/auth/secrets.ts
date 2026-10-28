@@ -1,6 +1,8 @@
 import { EdroError } from "../errors.ts";
 
-export type SecretKey = "token" | "client_secret";
+export type SecretKey = "token" | "client_secret" | "refresh_token";
+
+export const SECRET_KEYS: SecretKey[] = ["token", "client_secret", "refresh_token"];
 
 /** Where profile secrets live. The OS keychain in practice, memory in tests. */
 export interface SecretStore {

@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import type { Build } from "@edro/mellon";
-import { FAKE_HOSTNAME, FAKE_TOKEN, NIGHTLY_SCHEDULE } from "@edro/mellon/fake";
+import {
+  FAKE_HOSTNAME,
+  FAKE_REDIRECT_PORT,
+  FAKE_TOKEN,
+  fakeAuthorize,
+  NIGHTLY_SCHEDULE,
+} from "@edro/mellon/fake";
 import pkg from "../package.json" with { type: "json" };
 import { findCommand, main } from "./cli.ts";
 import { EXIT } from "./exit.ts";
@@ -252,5 +258,51 @@ describe("auth and profiles", () => {
     deps.stderr.length = 0;
     expect(await main(["whoami"], deps)).toBe(EXIT.auth);
     expect(deps.stderr[1]).toContain("edro login --profile second");
+  });
+
+  test("login --auth oauth signs in through the browser and keeps a refresh token", async () => {
+    const deps = testDeps({ readStdin: async () => FAKE_TOKEN });
+    // The "browser": approve on Foundry's page, then follow the redirect back to edro.
+    deps.openUrl = async (url) => {
+      deps.opened.push(url);
+      await fetch(fakeAuthorize(deps.state, url));
+    };
+    await main(["login", "--hostname", FAKE_HOSTNAME, "--with-token"], deps);
+
+    const argv = [
+      "login",
+      "--auth",
+      "oauth",
+      "--hostname",
+      FAKE_HOSTNAME,
+      "--client-id",
+      "fake-public-client",
+    ];
+    expect(await main([...argv, "--port", String(FAKE_REDIRECT_PORT)], deps)).toBe(EXIT.ok);
+    expect(deps.opened[0]).toContain("/multipass/api/oauth2/authorize?");
+    expect(deps.stderr.join("\n")).toContain("If it doesn't open, visit:");
+    expect(await deps.secrets.get("default", "refresh_token")).toStartWith("fake-refresh-token-");
+    // The token from the earlier login is gone now that the profile uses browser sign-in.
+    expect(await deps.secrets.get("default", "token")).toBeNull();
+    expect(await Bun.file(`${deps.configDir}/config.toml`).text()).toContain(
+      `redirect_port = ${FAKE_REDIRECT_PORT}`,
+    );
+
+    deps.stdout.length = 0;
+    expect(await main(["whoami", "--json"], deps)).toBe(EXIT.ok);
+    expect(json(deps.stdout)).toMatchObject({
+      auth: "oauth (keychain)",
+      user: { username: "ada.example" },
+    });
+  });
+
+  test("login rejects an unknown --auth", async () => {
+    const deps = testDeps();
+    expect(
+      await main(
+        ["login", "--auth", "magic", "--hostname", FAKE_HOSTNAME, "--client-id", "x"],
+        deps,
+      ),
+    ).toBe(EXIT.usage);
   });
 });

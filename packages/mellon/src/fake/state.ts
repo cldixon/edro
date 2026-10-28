@@ -5,8 +5,17 @@ import type * as Orchestration from "@osdk/foundry.orchestration";
 export interface FakeFoundryState {
   /** Bearer tokens the fake accepts. */
   tokens: string[];
-  /** OAuth clients accepted by the token endpoint, keyed by client ID. */
+  /** Confidential OAuth clients (client credentials), keyed by client ID, to their secrets. */
   oauthClients: Record<string, string>;
+  /** Public OAuth clients (browser sign-in) and their registered redirect URIs. */
+  publicClients: Record<string, string[]>;
+  /** Issued authorization codes, waiting to be exchanged. */
+  authCodes: Record<
+    string,
+    { clientId: string; redirectUri: string; challenge: string; scope: string }
+  >;
+  /** Valid refresh tokens, to their client ID. */
+  refreshTokens: Record<string, string>;
   currentUser: Admin.User;
   builds: Orchestration.Build[];
   jobs: Orchestration.Job[];

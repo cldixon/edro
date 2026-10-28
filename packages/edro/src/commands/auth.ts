@@ -1,12 +1,17 @@
 import * as p from "@clack/prompts";
 import {
   type AuthType,
+  browserLogin,
   type CurrentUser,
   createClient,
+  DEFAULT_REDIRECT_PORT,
   DEFAULT_SCOPES,
   loadConfig,
   normalizeHostname,
   type Profile,
+  redirectUri,
+  SECRET_KEYS,
+  type SecretKey,
   saveConfig,
   tokenProviderFor,
   validateProfileName,
@@ -30,8 +35,30 @@ function answer<T>(value: T): Exclude<T, symbol> {
 interface LoginInput {
   name: string;
   profile: Profile;
-  secret: string;
+  /** Token or client secret; for browser sign-in, filled in by `signIn`. */
+  secret?: string;
 }
+
+const AUTH_TYPES: AuthType[] = ["token", "client-credentials", "oauth"];
+
+function parseAuth(value: unknown): AuthType | undefined {
+  const auth = str(value);
+  if (auth && !AUTH_TYPES.includes(auth as AuthType)) {
+    throw new UsageError(`Invalid --auth "${auth}". Use ${AUTH_TYPES.join(", ")}.`);
+  }
+  return auth as AuthType | undefined;
+}
+
+function parsePort(value: unknown): number | undefined {
+  if (value === undefined) return undefined;
+  const port = Number(value);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new UsageError(`Invalid --port "${value}".`);
+  }
+  return port;
+}
+
+const scopesFlag = (ctx: CommandContext) => str(ctx.args.scopes)?.split(",") ?? DEFAULT_SCOPES;
 
 async function promptLogin(
   ctx: CommandContext,
@@ -59,12 +86,18 @@ async function promptLogin(
         }),
       ),
   );
-  const auth = (str(args.auth) ??
+  const auth =
+    parseAuth(args.auth) ??
     answer(
-      await p.select({
+      await p.select<AuthType>({
         message: "How do you want to authenticate?",
         options: [
           { value: "token", label: "Personal token", hint: "from Developer Console" },
+          {
+            value: "oauth",
+            label: "Sign in with browser",
+            hint: "needs an OAuth app with a localhost redirect",
+          },
           {
             value: "client-credentials",
             label: "OAuth client credentials",
@@ -72,7 +105,7 @@ async function promptLogin(
           },
         ],
       }),
-    )) as AuthType;
+    );
 
   if (auth === "token") {
     const secret = answer(
@@ -83,11 +116,14 @@ async function promptLogin(
   const clientId =
     str(args["client-id"]) ??
     answer(await p.text({ message: "Client ID", validate: (v) => (v ? undefined : "Required") }));
+  if (auth === "oauth") {
+    const redirectPort = parsePort(args.port) ?? DEFAULT_REDIRECT_PORT;
+    return { name, profile: { hostname, auth, clientId, scopes: scopesFlag(ctx), redirectPort } };
+  }
   const secret = answer(
     await p.password({ message: "Client secret", validate: (v) => (v ? undefined : "Required") }),
   );
-  const scopes = str(args.scopes)?.split(",") ?? DEFAULT_SCOPES;
-  return { name, profile: { hostname, auth, clientId, scopes }, secret };
+  return { name, profile: { hostname, auth, clientId, scopes: scopesFlag(ctx) }, secret };
 }
 
 /** `--with-token`: non-interactive token login, reading the token from stdin. */
@@ -103,13 +139,68 @@ async function stdinLogin(ctx: CommandContext): Promise<LoginInput> {
   };
 }
 
-function verify(ctx: CommandContext, input: LoginInput): Promise<CurrentUser> {
-  const tokenProvider = tokenProviderFor(input.profile, input.secret, ctx.deps.fetch);
-  return createClient({
-    hostname: input.profile.hostname,
-    tokenProvider,
-    fetch: ctx.deps.fetch,
+/** Browser sign-in with everything given as flags: no prompts needed. */
+function flagOAuthLogin(ctx: CommandContext): LoginInput | undefined {
+  const hostname = str(ctx.args.hostname);
+  const clientId = str(ctx.args["client-id"]);
+  if (parseAuth(ctx.args.auth) !== "oauth" || !hostname || !clientId) return undefined;
+  return {
+    name: str(ctx.args.profile) ?? "default",
+    profile: {
+      hostname: normalizeHostname(hostname),
+      auth: "oauth",
+      clientId,
+      scopes: scopesFlag(ctx),
+      redirectPort: parsePort(ctx.args.port) ?? DEFAULT_REDIRECT_PORT,
+    },
+  };
+}
+
+/** Checks the credentials (signing in through the browser first, for oauth). */
+async function signIn(
+  ctx: CommandContext,
+  input: LoginInput,
+  say: (line: string) => void,
+): Promise<{ user: CurrentUser; secretKey: SecretKey; secret: string }> {
+  const { profile } = input;
+  const { fetch } = ctx.deps;
+  if (profile.auth === "oauth") {
+    const port = profile.redirectPort ?? DEFAULT_REDIRECT_PORT;
+    say(`The OAuth app's redirect URL must be ${redirectUri(port)}`);
+    const tokens = await browserLogin({
+      hostname: profile.hostname,
+      clientId: profile.clientId as string,
+      scopes: profile.scopes ?? DEFAULT_SCOPES,
+      port,
+      openUrl: ctx.deps.openUrl,
+      onUrl: (url) => say(`Opening your browser to sign in. If it doesn't open, visit:\n${url}`),
+      fetch,
+    });
+    const user = await createClient({
+      hostname: profile.hostname,
+      tokenProvider: async () => tokens.accessToken,
+      fetch,
+    }).whoami();
+    if (!tokens.refreshToken) {
+      say(
+        "Foundry didn't issue a refresh token, so you'll need to log in again when this session expires.",
+      );
+    }
+    return tokens.refreshToken
+      ? { user, secretKey: "refresh_token", secret: tokens.refreshToken }
+      : { user, secretKey: "token", secret: tokens.accessToken };
+  }
+  const secret = input.secret as string;
+  const user = await createClient({
+    hostname: profile.hostname,
+    tokenProvider: tokenProviderFor(profile, secret, fetch),
+    fetch,
   }).whoami();
+  return { user, secretKey: profile.auth === "token" ? "token" : "client_secret", secret };
+}
+
+async function deleteSecrets(ctx: { deps: CommandContext["deps"] }, name: string): Promise<void> {
+  for (const key of SECRET_KEYS) await ctx.deps.secrets.delete(name, key);
 }
 
 export const authCommands: CommandDef[] = [
@@ -121,11 +212,15 @@ export const authCommands: CommandDef[] = [
       { name: "hostname", description: "Foundry host, e.g. example.palantirfoundry.com" },
       {
         name: "auth",
-        description: "token or client-credentials",
-        values: ["token", "client-credentials"],
+        description: "token, oauth (browser sign-in) or client-credentials",
+        values: AUTH_TYPES,
       },
-      { name: "client-id", description: "OAuth client ID (client-credentials)" },
-      { name: "scopes", description: "Comma-separated OAuth scopes (client-credentials)" },
+      { name: "client-id", description: "OAuth client ID (oauth, client-credentials)" },
+      { name: "scopes", description: "Comma-separated OAuth scopes" },
+      {
+        name: "port",
+        description: `Local port for the browser sign-in redirect (default ${DEFAULT_REDIRECT_PORT})`,
+      },
       {
         name: "with-token",
         description: "Read a token from stdin instead of prompting",
@@ -136,40 +231,43 @@ export const authCommands: CommandDef[] = [
       const { deps } = ctx;
       const config = loadConfig(deps.configDir);
       const withToken = !!ctx.args["with-token"];
-      if (!withToken && !deps.interactive) {
+      const fromFlags = withToken ? undefined : flagOAuthLogin(ctx);
+      const interactive = !withToken && !fromFlags;
+      if (interactive && !deps.interactive) {
         throw new UsageError(
-          "`edro login` needs a terminal. In scripts, pipe a token in: edro login --hostname <host> --with-token",
+          "`edro login` needs a terminal. In scripts, pipe a token in (edro login --hostname <host> --with-token), or pass --auth oauth with --hostname and --client-id.",
         );
       }
       const input = withToken
         ? await stdinLogin(ctx)
-        : await promptLogin(ctx, config.defaultProfile);
+        : (fromFlags ?? (await promptLogin(ctx, config.defaultProfile)));
       const invalid = validateProfileName(input.name);
       if (invalid) throw new UsageError(`Invalid profile name "${input.name}". ${invalid}`);
 
-      const spinner = withToken ? undefined : p.spinner();
+      const say = interactive
+        ? (line: string) => p.log.info(line)
+        : (line: string) => deps.io.err(line);
+      const spinner = interactive && input.profile.auth !== "oauth" ? p.spinner() : undefined;
       spinner?.start(`Checking credentials with ${input.profile.hostname}`);
-      let user: CurrentUser;
+      let result: Awaited<ReturnType<typeof signIn>>;
       try {
-        user = await verify(ctx, input);
+        result = await signIn(ctx, input, say);
       } catch (e) {
         spinner?.error("Could not sign in");
         throw e;
       }
-      spinner?.stop(`Signed in as ${user.username}`);
+      spinner?.stop(`Signed in as ${result.user.username}`);
 
-      await deps.secrets.set(
-        input.name,
-        input.profile.auth === "token" ? "token" : "client_secret",
-        input.secret,
-      );
+      // Replace whatever this profile stored before, e.g. after switching auth type.
+      await deleteSecrets(ctx, input.name);
+      await deps.secrets.set(input.name, result.secretKey, result.secret);
       config.profiles[input.name] = input.profile;
       config.defaultProfile ??= input.name;
       saveConfig(deps.configDir, config);
 
-      const msg = `Logged in to ${input.profile.hostname} as ${user.username} (profile "${input.name}"${config.defaultProfile === input.name ? ", default" : ""}).`;
-      if (withToken) deps.io.out(msg);
-      else p.outro(msg);
+      const msg = `Logged in to ${input.profile.hostname} as ${result.user.username} (profile "${input.name}"${config.defaultProfile === input.name ? ", default" : ""}).`;
+      if (interactive) p.outro(msg);
+      else deps.io.out(msg);
       return EXIT.ok;
     },
   },
@@ -184,8 +282,7 @@ export const authCommands: CommandDef[] = [
       const name = str(args.profile) ?? config.defaultProfile;
       if (!name || !config.profiles[name])
         throw new UsageError(`No profile named "${name ?? ""}".`);
-      await deps.secrets.delete(name, "token");
-      await deps.secrets.delete(name, "client_secret");
+      await deleteSecrets({ deps }, name);
       deps.io.out(`Removed stored credentials for profile "${name}".`);
       return EXIT.ok;
     },
@@ -245,8 +342,7 @@ export const authCommands: CommandDef[] = [
       if (config.defaultProfile === name)
         config.defaultProfile = Object.keys(config.profiles)[0] ?? null;
       saveConfig(deps.configDir, config);
-      await deps.secrets.delete(name, "token");
-      await deps.secrets.delete(name, "client_secret");
+      await deleteSecrets({ deps }, name);
       deps.io.out(`Deleted profile "${name}".`);
       return EXIT.ok;
     },

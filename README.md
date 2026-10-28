@@ -24,8 +24,15 @@ bun run edro builds ls --demo
 edro login
 ```
 
-`edro login` asks for a hostname and either a personal token or OAuth client credentials, checks them,
-and saves a profile. Profiles live in `~/.config/edro/config.toml` (or `$XDG_CONFIG_HOME/edro`); secrets go
+`edro login` asks for a hostname and how to authenticate, checks the credentials, and saves a profile:
+
+- **Personal token**, from Developer Console.
+- **Sign in with browser**: needs an OAuth app in Developer Console whose redirect URL is
+  `http://127.0.0.1:8765/callback` (or pick another port with `--port`). edro keeps a refresh token, so you
+  stay signed in. Without prompts: `edro login --auth oauth --hostname <host> --client-id <id>`.
+- **OAuth client credentials**, for automation.
+
+Profiles live in `~/.config/edro/config.toml` (or `$XDG_CONFIG_HOME/edro`); secrets go
 to the OS keychain, never to that file.
 
 In CI and containers, which usually have no keychain, use environment variables instead. They use the same
